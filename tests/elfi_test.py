@@ -46,7 +46,8 @@ class TestElfi(unittest.TestCase):
 		makeDirTree(d, dirtree, relpath=self.backup, mtime=mtime)
 		makeDirTree(d, dirtree, relpath=self.base, mtime=mtime)
 
-		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
+		diff_sets = elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
+		elfi.do_backup(d.getpath(self.base), d.getpath(self.backup), *diff_sets)
 
 		self.assertNotCalled(cp, 'cp',
 					"Identical directories shouldn't require a copy.")
@@ -67,7 +68,8 @@ class TestElfi(unittest.TestCase):
 		d.makedir(self.backup)
 		makeDirTree(d, dirtree, relpath=self.base)
 
-		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
+		diff_sets = elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
+		elfi.do_backup(d.getpath(self.base), d.getpath(self.backup), *diff_sets)
 
 		self.assertTrue(dirTreeMatches(d.getpath(self.base), dirtree))
 		self.assertTrue(dirTreeMatches(d.getpath(self.backup), dirtree))
@@ -86,7 +88,8 @@ class TestElfi(unittest.TestCase):
 		makeDirTree(d, dirtree, relpath=self.backup)
 		d.makedir(self.base)
 
-		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
+		diff_sets = elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
+		elfi.do_backup(d.getpath(self.base), d.getpath(self.backup), *diff_sets)
 
 		self.assertTrue(dirTreeMatches(d.getpath(self.base), ()))
 		self.assertTrue(dirTreeMatches(d.getpath(self.backup), ()))
@@ -118,7 +121,8 @@ class TestElfi(unittest.TestCase):
 		for mod_path in modify_paths:
 			os.utime(d.getpath(os.path.join(self.base, mod_path)), ns=mtime_plus)
 
-		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
+		diff_sets = elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
+		elfi.do_backup(d.getpath(self.base), d.getpath(self.backup), *diff_sets)
 
 		self.assertTrue(dirTreeMatches(d.getpath(self.base), dirtree))
 		self.assertTrue(dirTreeMatches(d.getpath(self.backup), dirtree))

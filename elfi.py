@@ -33,7 +33,7 @@ def diff_walk(base, backup):
 		backup_path = os.path.join(backup, rel_path)
 
 		if not os.path.exists(backup_path):
-			add_backup_path(add_list, rel_path)
+			add_list.append(rel_path)
 			continue
 
 		backup_listing = os.listdir(backup_path)
@@ -41,7 +41,7 @@ def diff_walk(base, backup):
 
 		for direntry in files:
 			if not direntry in backup_listing:
-				add_backup_path(add_list, os.path.join(rel_path, direntry))
+				add_list.append(os.path.join(rel_path, direntry))
 
 		#TODO correct but possible rewrite, e.g. if not direntry in base_dirs:
 		for direntry in backup_listing:
@@ -49,7 +49,7 @@ def diff_walk(base, backup):
 			base_direntry = os.path.join(base_path, direntry)
 			backup_direntry = os.path.join(backup_path, direntry)
 			if not direntry in base_listing:
-				add_backup_path(remove_list, rel_direntry)
+				remove_list.append(rel_direntry)
 			elif newer(base_direntry, backup_direntry):
 				if not os.path.isdir(base_direntry):
 					update_list.append(rel_direntry)
@@ -61,36 +61,15 @@ def diff_walk(base, backup):
 	remove_set = build_backup_path_set(remove_list)
 	update_set = build_backup_path_set(update_list)
 
-	"""
-	print('To be added to backup:')
-	for item in add_set:
-		print('    {}'.format(item))
-	print('To be removed from backup:')
-	for item in remove_set:
-		print('    {}'.format(item))
-	print('To be updated in backup:')
-	for item in update_set:
-		print('    {}'.format(item))
-	"""
+	return (add_set, remove_set, update_set)
 
-	#TODO return lists here, actual copying and removing in separate function
-
+def do_backup(base, backup, add_set, remove_set, update_set):
 	for item in add_set | update_set:
 		base_path = os.path.join(base, item)
 		copy_to_backup(base, backup, item)
 
 	for item in remove_set:
 		remove_from_backup(backup, item)
-
-def add_backup_path(list, path):
-	list.append(path)
-	"""
-	for add_path in list:
-		if path.startswith(os.path.join(add_path, '')):
-			#break
-	else:
-		list.append(path)
-	"""
 
 def build_backup_path_set(paths):
 	path_set = set(paths)
@@ -130,8 +109,20 @@ def remove_from_backup(backup, relpath):
 def newer(path1, path2):
 	return int(os.path.getmtime(path1)) > int(os.path.getmtime(path2))
 
-def print_walk(base):
+def print_diff_walk(add_set, remove_set, update_set):
+	"""Prints the changes detected by diff_walk()."""
+	print('To be added to backup:')
+	for item in sorted(add_set):
+		print('    {}'.format(item))
+	print('To be removed from backup:')
+	for item in sorted(remove_set):
+		print('    {}'.format(item))
+	print('To be updated in backup:')
+	for item in sorted(update_set):
+		print('    {}'.format(item))
 
+def print_walk(base):
+	"""Prints the result of walking starting at the path argument."""
 	for path, dirs, files in os.walk(base):
 		path = path[len(basepath):] + '/'
 		print(path)
@@ -144,5 +135,7 @@ if __name__ == "__main__":
 		print('usage: elfi.py base_path backup_path')
 		exit(1)
 	print('Walking with root {} ...'.format(sys.argv[1]))
-	diff_walk(sys.argv[1], sys.argv[2])
+	base = sys.argv[1]
+	backup = sys.argv[2]
+	print_diff_walk(base, backup, *diff_walk(base, backup))
 	exit(0)
