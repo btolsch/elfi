@@ -46,9 +46,7 @@ class TestElfi(unittest.TestCase):
 		makeDirTree(d, dirtree, relpath=self.backup, mtime=mtime)
 		makeDirTree(d, dirtree, relpath=self.base, mtime=mtime)
 
-		print('dirs identical')
 		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
-		print('dirs identical')
 
 		self.assertNotCalled(cp, 'cp',
 					"Identical directories shouldn't require a copy.")
@@ -69,9 +67,7 @@ class TestElfi(unittest.TestCase):
 		d.makedir(self.backup)
 		makeDirTree(d, dirtree, relpath=self.base)
 
-		print('backup empty')
 		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
-		print('backup empty')
 
 		self.assertTrue(dirTreeMatches(d.getpath(self.base), dirtree))
 		self.assertTrue(dirTreeMatches(d.getpath(self.backup), dirtree))
@@ -90,9 +86,7 @@ class TestElfi(unittest.TestCase):
 		makeDirTree(d, dirtree, relpath=self.backup)
 		d.makedir(self.base)
 
-		print('base empty')
 		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
-		print('base empty')
 
 		self.assertTrue(dirTreeMatches(d.getpath(self.base), ()))
 		self.assertTrue(dirTreeMatches(d.getpath(self.backup), ()))
@@ -124,9 +118,7 @@ class TestElfi(unittest.TestCase):
 		for mod_path in modify_paths:
 			os.utime(d.getpath(os.path.join(self.base, mod_path)), ns=mtime_plus)
 
-		print('modified files')
 		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
-		print('modified files')
 
 		self.assertTrue(dirTreeMatches(d.getpath(self.base), dirtree))
 		self.assertTrue(dirTreeMatches(d.getpath(self.backup), dirtree))
@@ -171,6 +163,70 @@ class TestElfi(unittest.TestCase):
 				error_msg = error_msg.format(mock.call_count, mock.call_args)
 			raise AssertionError(error_msg)
 
+class TestPathSet(unittest.TestCase):
+	def setUp(self):
+		self.depth_first_paths = (
+			#dir supercedes contents and single deep file
+			(('hello/world/foo.txt', 'hello/world/bar.txt',
+					'hello/world/', 'hello/foo/bar.txt'),
+				set(('hello/world/', 'hello/foo/bar.txt'))
+			),
+			#dir with similar name to file
+			(('hello/foo/bar.txt', 'hello/foo/', 'hello/foo.txt'),
+				set(('hello/foo/', 'hello/foo.txt'))
+			)
+		)
+
+		self.breadth_first_paths = (
+			#dir supercedes context and single deep file
+			(('hello/world/', 'hello/world/bar.txt', 'hello/world/foo.txt',
+					'hello/foo/bar.txt'),
+				set(('hello/world/', 'hello/foo/bar.txt'))
+			),
+			#dir with similar name to file
+			(('hello/foo/', 'hello/foo/bar.txt', 'hello/foo.txt'),
+				set(('hello/foo/', 'hello/foo.txt'))
+			)
+		)
+
+		self.mixed_paths = (
+			#dir supercedes context and single deep file
+			(('hello/world/bar.txt', 'hello/world/', 'hello/foo/bar.txt',
+					'hello/world/foo.txt'),
+				set(('hello/world/', 'hello/foo/bar.txt'))
+			),
+			#dir with similar name to file
+			(('hello/foo/', 'hello/foo.txt', 'hello/foo/bar.txt'), 
+				set(('hello/foo/', 'hello/foo.txt'))
+			)
+		)
+
+	def tearDown(self):
+		pass
+
+	def test_DepthFirstOrderBuild(self):
+		for paths, answer in self.depth_first_paths:
+			path_set = elfi.build_backup_path_set(paths)
+			self.assertEqual(path_set, answer)
+
+	def test_DepthFirstOrderIncremental(self):
+		pass
+
+	def test_BreadthFirstOrderBuild(self):
+		for paths, answer in self.breadth_first_paths:
+			path_set = elfi.build_backup_path_set(paths)
+			self.assertEqual(path_set, answer)
+
+	def test_BreadthFirstOrderIncremental(self):
+		pass
+
+	def test_MixedOrderBuild(self):
+		for paths, answer in self.mixed_paths:
+			path_set = elfi.build_backup_path_set(paths)
+			self.assertEqual(path_set, answer)
+
+	def test_MixedOrderIncremental(self):
+		pass
 
 if __name__ == '__main__':
 	unittest.main()

@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+from itertools import filterfalse
 
 #TODO
 # - logging instead of printing
@@ -56,31 +57,48 @@ def diff_walk(base, backup):
 				print('Warning: backup file newer than original:')
 				print('    {}'.format(os.path.join(rel_path, direntry)))
 
+	add_set = build_backup_path_set(add_list)
+	remove_set = build_backup_path_set(remove_list)
+	update_set = build_backup_path_set(update_list)
+
+	"""
 	print('To be added to backup:')
-	for item in add_list:
+	for item in add_set:
 		print('    {}'.format(item))
 	print('To be removed from backup:')
-	for item in remove_list:
+	for item in remove_set:
 		print('    {}'.format(item))
 	print('To be updated in backup:')
-	for item in update_list:
+	for item in update_set:
 		print('    {}'.format(item))
+	"""
 
 	#TODO return lists here, actual copying and removing in separate function
 
-	for item in add_list + update_list:
+	for item in add_set | update_set:
 		base_path = os.path.join(base, item)
 		copy_to_backup(base, backup, item)
 
-	for item in remove_list:
+	for item in remove_set:
 		remove_from_backup(backup, item)
 
 def add_backup_path(list, path):
+	list.append(path)
+	"""
 	for add_path in list:
 		if path.startswith(os.path.join(add_path, '')):
-			break
+			#break
 	else:
 		list.append(path)
+	"""
+
+def build_backup_path_set(paths):
+	path_set = set(paths)
+	for path in paths:
+		exclude_subtree = set(filterfalse(lambda p: p.startswith(path), paths))
+		exclude_subtree.add(path)
+		path_set &= exclude_subtree
+	return path_set
 
 def get_rel_path(base, path):
 	path = path[len(base):]
