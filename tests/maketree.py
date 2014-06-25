@@ -22,16 +22,16 @@ def build_path_set_dirtree(dirtree, path=''):
 		if isinstance(direntry, str):
 			path_set.add(os.path.join(path, direntry))
 		else:
-			dirpath = os.path.join(path, direntry[0])
+			dirpath = os.path.join(path, direntry[0], '')
 			path_set.add(dirpath)
-			path_set = path_set | build_path_set_dirtree(direntry[1], dirpath)
+			path_set |= build_path_set_dirtree(direntry[1], dirpath)
 	return path_set
 
 def build_path_set_walk(basepath):
-	basepath = os.path.abspath(basepath) + '/'
+	basepath = os.path.abspath(basepath) + os.path.sep
 	path_set = set()
 	for path, dirs, files in os.walk(basepath):
 		path = path[len(basepath):]
-		for direntry in dirs + files:
-			path_set.add(os.path.join(path, direntry))
+		path_set |= {os.path.join(path, dir, '') for dir in dirs}
+		path_set |= {os.path.join(path, file) for file in files}
 	return path_set

@@ -73,24 +73,7 @@ class TestElfi(unittest.TestCase):
 						)),
 						'alpha', 'beta'
 					)
-		d.makedir(self.backup)
-		make_dir_tree(d, dirtree, relpath=self.base)
-
-		abs_base = d.getpath(self.base)
-		abs_backup = d.getpath(self.backup)
-
-		rel_path_set = elfi.build_backup_path_set(build_path_set_dirtree(dirtree))
-		rel_args_set = {(abs_base, abs_backup, p) for p in rel_path_set}
-
-		diff_sets = elfi.diff_walk(abs_base, abs_backup)
-		self.assertEqual(set(diff_sets[0]), rel_path_set, 'All paths in base should be considered new.')
-		self.assertEqual(len(diff_sets[1]), 0, 'Should be no removals in backup.')
-		self.assertEqual(len(diff_sets[2]), 0, 'Should be no updates in backup.')
-
-		elfi.do_backup(abs_base, abs_backup, *diff_sets)
-
-		self.assertCallListsEqual(cp, rel_args_set, 'Extra call made to cp')
-		self.assertNotCalled(rm, 'rm', 'Should only copy to an empty backup.')
+		self.backupEmptyTest(cp, rm, d, dirtree)
 
 	@patch('elfi.remove_from_backup', autospec=True)
 	@patch('elfi.copy_to_backup', autospec=True)
@@ -169,21 +152,85 @@ class TestElfi(unittest.TestCase):
 		self.assertCallListsEqual(cp, mod_args_set, 'Extra call to cp')
 		self.assertNotCalled(rm, 'rm', 'Should only remove when base is missing files.')
 
-	def test_NewFiles(self):
-		pass
-		#self.assertTrue(False)
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
+	@tempdir()
+	def test_NewFiles(self, cp, rm, d):
+		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
+						('hello', (
+							'test.py', 'test.c', 'test',
+							('world', (
+								'foo', 'banana'
+							))
+						)),
+						'alpha', 'beta'
+					)
+		new_paths = ('baz.txt',
+						os.path.join('hello', 'test.cpp'),
+						os.path.join('hello', 'README'),
+						os.path.join('hello', 'world', 'hand'),
+						os.path.join('hello', 'world', 'python')
+						)
+
+		mtime = self.current_time_ns()
+		make_dir_tree(d, dirtree, relpath=self.base, mtime=mtime)
+		make_dir_tree(d, dirtree, relpath=self.backup, mtime=mtime)
+
+		for p in new_paths:
+			d.write(os.path.join(self.base, p), b'')
+
+		abs_base = d.getpath(self.base)
+		abs_backup = d.getpath(self.backup)
+
+		rel_path_set = elfi.build_backup_path_set(new_paths)
+		rel_args_set = {(abs_base, abs_backup, p) for p in rel_path_set}
+
+		diff_sets = elfi.diff_walk(abs_base, abs_backup)
+		self.assertEqual(set(diff_sets[0]), rel_path_set, 'All new paths should be added.')
+		self.assertEqual(len(diff_sets[1]), 0, 'Should be no removals from backup.')
+		self.assertEqual(len(diff_sets[2]), 0, 'Should be no updates to backup.')
+
+		elfi.do_backup(abs_base, abs_backup, *diff_sets)
+
+		self.assertCallListsEqual(cp, rel_args_set, 'Extra call to cp')
+		self.assertNotCalled(rm, 'rm', 'Should only remove when base is missing files.')
 
 	def test_NewDirectories(self):
 		pass
-		#self.assertTrue(False)
 
 	def test_DeletedFiles(self):
 		pass
-		#self.assertTrue(False)
 
 	def test_DeletedDirectories(self):
 		pass
-		#self.assertTrue(False)
+
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
+	@tempdir()
+	def test_DirPrefixOfSiblingFile(self, cp, rm, d):
+		dirtree = ('hello.txt', ('hello', ('foo', 'bar')))
+		self.backupEmptyTest(cp, rm, d, dirtree)
+
+	def backupEmptyTest(self, cp, rm, d, dirtree):
+		d.makedir(self.backup)
+		make_dir_tree(d, dirtree, relpath=self.base)
+
+		abs_base = d.getpath(self.base)
+		abs_backup = d.getpath(self.backup)
+
+		rel_path_set = elfi.build_backup_path_set(build_path_set_dirtree(dirtree))
+		rel_args_set = {(abs_base, abs_backup, p) for p in rel_path_set}
+
+		diff_sets = elfi.diff_walk(abs_base, abs_backup)
+		self.assertEqual(set(diff_sets[0]), rel_path_set, 'All paths in base should be considered new.')
+		self.assertEqual(len(diff_sets[1]), 0, 'Should be no removals in backup.')
+		self.assertEqual(len(diff_sets[2]), 0, 'Should be no updates in backup.')
+
+		elfi.do_backup(abs_base, abs_backup, *diff_sets)
+
+		self.assertCallListsEqual(cp, rel_args_set, 'Extra call made to cp')
+		self.assertNotCalled(rm, 'rm', 'Should only copy to an empty backup.')
+
 
 	def assertNotCalled(self, mock_fn, mock_name, reason=''):
 		if mock_fn.called:

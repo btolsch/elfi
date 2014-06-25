@@ -20,12 +20,13 @@ class TestMakeTree(unittest.TestCase):
 									'foo', 'banana'
 								))
 							)),
-							'alpha', 'beta'
+							'alpha', 'beta', 'hello.txt'
 						)
 		self.dirtree_paths = {'foo.txt', 'blah.txt', 'a.txt', 'a.c',
-								'hello', 'hello/test.py', 'hello/test.c',
-								'hello/test', 'hello/world', 'hello/world/foo',
-								'hello/world/banana', 'alpha', 'beta'
+								'hello/', 'hello/test.py', 'hello/test.c',
+								'hello/test', 'hello/world/', 'hello/world/foo',
+								'hello/world/banana', 'alpha', 'beta',
+								'hello.txt'
 							}
 		pass
 
@@ -57,7 +58,7 @@ class TestMakeTree(unittest.TestCase):
 
 	def test_BuildPathSet(self):
 		built_pathset = maketree.build_path_set_dirtree(self.dirtree)
-		self.assertTrue(built_pathset == self.dirtree_paths)
+		self.assertEqual(built_pathset, self.dirtree_paths)
 
 	@tempdir()
 	def test_BuildPathSetWalk(self, d):
@@ -67,12 +68,12 @@ class TestMakeTree(unittest.TestCase):
 		d.write('one/two.txt', b'')
 		d.write('one.txt', b'')
 
-		pathset =	{'one', 'one.txt', 'one/two', 'one/two.txt',
-					'one/two/three', 'one/two/three.txt',
+		pathset =	{'one/', 'one.txt', 'one/two/', 'one/two.txt',
+					'one/two/three/', 'one/two/three.txt',
 					'one/two/three/four.txt'
 					}
 		built_pathset = maketree.build_path_set_walk(d.getpath('.'))
-		self.assertTrue(built_pathset == pathset)
+		self.assertEqual(built_pathset, pathset)
 
 	@tempdir()
 	def test_DirTreeMatchesEmpty(self, d):

@@ -29,7 +29,7 @@ def diff_walk(base, backup):
 
 	#walk base root to find difference between dir trees
 	for base_path, dirs, files in os.walk(base):
-		rel_path = get_rel_path(base, base_path)
+		rel_path = os.path.join(get_rel_path(base, base_path), '')
 		backup_path = os.path.join(backup, rel_path)
 
 		if not os.path.exists(backup_path):
@@ -43,11 +43,13 @@ def diff_walk(base, backup):
 			if not direntry in backup_listing:
 				add_list.append(os.path.join(rel_path, direntry))
 
-		#TODO correct but possible rewrite, e.g. if not direntry in base_dirs:
 		for direntry in backup_listing:
 			rel_direntry = os.path.join(rel_path, direntry)
 			base_direntry = os.path.join(base_path, direntry)
 			backup_direntry = os.path.join(backup_path, direntry)
+			if os.path.isdir(backup_direntry):
+				rel_direntry = os.path.join(rel_direntry, '')
+
 			if not direntry in base_listing:
 				remove_list.append(rel_direntry)
 			elif newer(base_direntry, backup_direntry):
@@ -138,8 +140,7 @@ if __name__ == "__main__":
 	if len(sys.argv) != 3:
 		print('usage: elfi.py base_path backup_path')
 		exit(1)
-	print('Walking with root {} ...'.format(sys.argv[1]))
 	base = sys.argv[1]
 	backup = sys.argv[2]
-	print_diff_walk(base, backup, *diff_walk(base, backup))
+	print_diff_walk(*diff_walk(base, backup))
 	exit(0)
