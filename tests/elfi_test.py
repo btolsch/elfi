@@ -2,6 +2,7 @@ import os
 import sys
 from testfixtures import tempdir
 import unittest
+from mock import patch
 from time import time
 
 #import module with relative path when invoked from command line
@@ -28,8 +29,10 @@ class TestElfi(unittest.TestCase):
 	def tearDown(self):
 		pass
 
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
 	@tempdir()
-	def test_DirsIdentical(self, d):
+	def test_DirsIdentical(self, cp, rm, d):
 		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
 						('hello', (
 							'test.py', 'test.c', 'test',
@@ -39,7 +42,6 @@ class TestElfi(unittest.TestCase):
 						)),
 						'alpha', 'beta'
 					)
-		#TODO test that no copies happened?
 		mtime = self.current_time_ns()
 		makeDirTree(d, dirtree, relpath=self.backup, mtime=mtime)
 		makeDirTree(d, dirtree, relpath=self.base, mtime=mtime)
@@ -48,8 +50,10 @@ class TestElfi(unittest.TestCase):
 		elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
 		print('dirs identical')
 
-		self.assertTrue(dirTreeMatches(d.getpath(self.base), dirtree))
-		self.assertTrue(dirTreeMatches(d.getpath(self.backup), dirtree))
+		self.assertNotCalled(cp, 'cp',
+					"Identical directories shouldn't require a copy.")
+		self.assertNotCalled(rm, 'rm',
+					"Identical directories shouldn't require a remove.")
 
 	@tempdir()
 	def test_BackupEmpty(self, d):
@@ -154,5 +158,19 @@ class TestElfi(unittest.TestCase):
 		pass
 		#self.assertTrue(False)
 
-if __name__ == "__main__":
+	def assertNotCalled(self, mock, mock_name, reason=''):
+		if mock.called:
+			error_msg = mock_name + ' called '
+			error_msg += 'once' if mock.called == 1 else '{} times'
+			error_msg += ', last with {}'
+			if reason:
+				error_msg += '. ' + reason
+			if mock.called == 1:
+				error_msg = error_msg.format(mock.call_args)
+			else:
+				error_msg = error_msg.format(mock.call_count, mock.call_args)
+			raise AssertionError(error_msg)
+
+
+if __name__ == '__main__':
 	unittest.main()
