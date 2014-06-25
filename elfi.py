@@ -9,35 +9,30 @@ import sys
 # - filters to exclude certain files
 # - tar and compress option
 
-def diff_walk(base_root, backup_root):
-	#canonicalize root paths
-	base_root = os.path.abspath(base_root)
-	backup_root = os.path.abspath(backup_root)
+def diff_walk(base, backup):
+	base = os.path.abspath(base)
+	backup = os.path.abspath(backup)
 
-	#fail if base directory doesn't exist
-	if not os.path.exists(base_root):
-		raise IOError('File not found: {}'.format(base_root))
+	if not os.path.exists(base):
+		raise IOError('File not found: {}'.format(base))
 
-	if not os.path.isdir(base_root):
+	if not os.path.isdir(base):
 		print('Warning: base path not a directory, changing to base directory')
-		base_root = os.path.dirname(base_root)
+		base = os.path.dirname(base)
 
-	#create backup dir if it doesn't exist
-	os.makedirs(backup_root, exist_ok=True)
+	os.makedirs(backup, exist_ok=True)
 
-	#initialize add/remove/update lists
 	add_list = []
 	remove_list = []
 	update_list = []
 
 	#walk base root to find difference between dir trees
-	for base_path, dirs, files in os.walk(base_root):
-		#get equivalent path in backup directory
-		rel = get_rel_path(base_root, base_path)
-		backup_path = os.path.join(backup_root, rel)
+	for base_path, dirs, files in os.walk(base):
+		rel_path = get_rel_path(base, base_path)
+		backup_path = os.path.join(backup, rel_path)
 
 		if not os.path.exists(backup_path):
-			add_backup_path(add_list, rel)
+			add_backup_path(add_list, rel_path)
 			continue
 
 		backup_listing = os.listdir(backup_path)
@@ -45,10 +40,11 @@ def diff_walk(base_root, backup_root):
 
 		for direntry in files:
 			if not direntry in backup_listing:
-				add_backup_path(add_list, os.path.join(rel, direntry))
+				add_backup_path(add_list, os.path.join(rel_path, direntry))
 
+		#TODO correct but possible rewrite, e.g. if not direntry in base_dirs:
 		for direntry in backup_listing:
-			rel_direntry = os.path.join(rel, direntry)
+			rel_direntry = os.path.join(rel_path, direntry)
 			base_direntry = os.path.join(base_path, direntry)
 			backup_direntry = os.path.join(backup_path, direntry)
 			if not direntry in base_listing:
@@ -58,7 +54,7 @@ def diff_walk(base_root, backup_root):
 					update_list.append(rel_direntry)
 			elif newer(backup_direntry, base_direntry):
 				print('Warning: backup file newer than original:')
-				print('    {}'.format(os.path.join(rel, direntry)))
+				print('    {}'.format(os.path.join(rel_path, direntry)))
 
 	print('To be added to backup:')
 	for item in add_list:
@@ -70,21 +66,14 @@ def diff_walk(base_root, backup_root):
 	for item in update_list:
 		print('    {}'.format(item))
 
+	#TODO return lists here, actual copying and removing in separate function
+
 	for item in add_list + update_list:
-		base_path = os.path.join(base_root, item)
-		if os.path.isdir(base_path):
-			shutil.copytree(base_path, os.path.join(backup_root, item))
-		else:
-			shutil.copy2(base_path, os.path.join(backup_root, item))
+		base_path = os.path.join(base, item)
+		copy_to_backup(base, backup, item)
 
 	for item in remove_list:
-		path = os.path.join(backup_root, item)
-		if os.path.isfile(path):
-			os.remove(path)
-		elif os.path.isdir(path):
-			shutil.rmtree(path)
-		else:
-			print('Warning: removing {} not supported.'.format(path))
+		remove_from_backup(backup, item)
 
 def add_backup_path(list, path):
 	for add_path in list:
@@ -95,16 +84,37 @@ def add_backup_path(list, path):
 
 def get_rel_path(base, path):
 	path = path[len(base):]
-	if path.startswith('/'):
+	if path.startswith(os.path.sep):
 		path = path[1:]
 	return path
+
+#TODO symbolic link copying and testing
+def copy_to_backup(base, backup, relpath):
+	base_path = os.path.join(base, relpath)
+	backup_path = os.path.join(backup, relpath)
+	if os.path.isfile(base_path):
+		shutil.copy2(base_path, backup_path)
+	elif os.path.isdir(base_path):
+		shutil.copytree(base_path, backup_path)
+	else:
+		print('Warning: copying {} not supported.'.format(base_path))
+
+#TODO symbolic link removal and testing
+def remove_from_backup(backup, relpath):
+	backup_path = os.path.join(backup, relpath)
+	if os.path.isfile(backup_path):
+		os.remove(backup_path)
+	elif os.path.isdir(backup_path) and not os.path.islink(backup_path):
+		shutil.rmtree(backup_path)
+	else:
+		print('Warning: removing {} not supported.'.format(backup_path))
 
 def newer(path1, path2):
 	return int(os.path.getmtime(path1)) > int(os.path.getmtime(path2))
 
-def print_walk(basepath):
+def print_walk(base):
 
-	for path, dirs, files in os.walk(basepath):
+	for path, dirs, files in os.walk(base):
 		path = path[len(basepath):] + '/'
 		print(path)
 		print('dirs:\t{}'.format(dirs))
