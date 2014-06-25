@@ -34,16 +34,16 @@ class TestMakeTree(unittest.TestCase):
 
 	@tempdir()
 	def test_MakeDirTree(self, d):
-		maketree.makeDirTree(d, self.dirtree)
-		self.assertTrue(maketree.dirTreeMatches(d.getpath('.'), self.dirtree))
+		maketree.make_dir_tree(d, self.dirtree)
+		self.assertTrue(maketree.dir_tree_matches(d.getpath('.'), self.dirtree))
 
 	@tempdir()
 	def test_MakeDirTreeMtime(self, d):
 		base = 'base'
 		backup = 'backup'
 		mtime = int(round(time() * 1000000000))
-		maketree.makeDirTree(d, self.dirtree, relpath=backup, mtime=mtime)
-		maketree.makeDirTree(d, self.dirtree, relpath=base, mtime=mtime)
+		maketree.make_dir_tree(d, self.dirtree, relpath=backup, mtime=mtime)
+		maketree.make_dir_tree(d, self.dirtree, relpath=base, mtime=mtime)
 
 		for basedir in (base, backup):
 			for path, dirs, files in os.walk(d.getpath(basedir)):
@@ -56,7 +56,7 @@ class TestMakeTree(unittest.TestCase):
 		
 
 	def test_BuildPathSet(self):
-		built_pathset = maketree.buildPathSet(self.dirtree)
+		built_pathset = maketree.build_path_set_dirtree(self.dirtree)
 		self.assertTrue(built_pathset == self.dirtree_paths)
 
 	@tempdir()
@@ -71,12 +71,12 @@ class TestMakeTree(unittest.TestCase):
 					'one/two/three', 'one/two/three.txt',
 					'one/two/three/four.txt'
 					}
-		built_pathset = maketree.buildPathSetWalk(d.getpath('.'))
+		built_pathset = maketree.build_path_set_walk(d.getpath('.'))
 		self.assertTrue(built_pathset == pathset)
 
 	@tempdir()
 	def test_DirTreeMatchesEmpty(self, d):
-		self.assertTrue(maketree.dirTreeMatches(d.getpath('.'), ()))
+		self.assertTrue(maketree.dir_tree_matches(d.getpath('.'), ()))
 
 if __name__ == "__main__":
 	unittest.main()

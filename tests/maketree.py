@@ -1,7 +1,6 @@
 import os
 
-#TODO need a way to make mtime's all the same
-def makeDirTree(tempdir, dirtree, relpath='', mtime=None):
+def make_dir_tree(tempdir, dirtree, relpath='', mtime=None):
 	#dirtree represents a directory: (name, (contents, ...))
 	for direntry in dirtree:
 		if isinstance(direntry, str):
@@ -10,14 +9,14 @@ def makeDirTree(tempdir, dirtree, relpath='', mtime=None):
 			if mtime:
 				os.utime(tempdir.getpath(path), ns=(mtime, mtime))
 		else:
-			makeDirTree(tempdir, direntry[1], os.path.join(relpath, direntry[0]))
+			make_dir_tree(tempdir, direntry[1], os.path.join(relpath, direntry[0]))
 			if mtime:
 				os.utime(tempdir.getpath(os.path.join(relpath, direntry[0])), ns=(mtime, mtime))
 
-def dirTreeMatches(path, dirtree):
-	return buildPathSet(dirtree) == buildPathSetWalk(path)
+def dir_tree_matches(path, dirtree):
+	return build_path_set_dirtree(dirtree) == build_path_set_walk(path)
 
-def buildPathSet(dirtree, path=''):
+def build_path_set_dirtree(dirtree, path=''):
 	path_set = set()
 	for direntry in dirtree:
 		if isinstance(direntry, str):
@@ -25,10 +24,10 @@ def buildPathSet(dirtree, path=''):
 		else:
 			dirpath = os.path.join(path, direntry[0])
 			path_set.add(dirpath)
-			path_set = path_set | buildPathSet(direntry[1], dirpath)
+			path_set = path_set | build_path_set_dirtree(direntry[1], dirpath)
 	return path_set
 
-def buildPathSetWalk(basepath):
+def build_path_set_walk(basepath):
 	basepath = os.path.abspath(basepath) + '/'
 	path_set = set()
 	for path, dirs, files in os.walk(basepath):

@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.realpath(os.path.abspath(
 					os.path.join('/'.join(sys.argv[0].split('/')[:-1]),
 					'.' #relative path to maketree module
 				))))
-from maketree import makeDirTree, dirTreeMatches
+from maketree import make_dir_tree, build_path_set_dirtree
 sys.path.pop(0)
 
 class TestElfi(unittest.TestCase):
@@ -43,8 +43,8 @@ class TestElfi(unittest.TestCase):
 						'alpha', 'beta'
 					)
 		mtime = self.current_time_ns()
-		makeDirTree(d, dirtree, relpath=self.backup, mtime=mtime)
-		makeDirTree(d, dirtree, relpath=self.base, mtime=mtime)
+		make_dir_tree(d, dirtree, relpath=self.backup, mtime=mtime)
+		make_dir_tree(d, dirtree, relpath=self.base, mtime=mtime)
 
 		diff_sets = elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
 		elfi.do_backup(d.getpath(self.base), d.getpath(self.backup), *diff_sets)
@@ -54,8 +54,10 @@ class TestElfi(unittest.TestCase):
 		self.assertNotCalled(rm, 'rm',
 					"Identical directories shouldn't require a remove.")
 
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
 	@tempdir()
-	def test_BackupEmpty(self, d):
+	def test_BackupEmpty(self, cp, rm, d):
 		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
 						('hello', (
 							'test.py', 'test.c', 'test',
@@ -66,16 +68,30 @@ class TestElfi(unittest.TestCase):
 						'alpha', 'beta'
 					)
 		d.makedir(self.backup)
-		makeDirTree(d, dirtree, relpath=self.base)
+		make_dir_tree(d, dirtree, relpath=self.base)
 
 		diff_sets = elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
 		elfi.do_backup(d.getpath(self.base), d.getpath(self.backup), *diff_sets)
 
-		self.assertTrue(dirTreeMatches(d.getpath(self.base), dirtree))
-		self.assertTrue(dirTreeMatches(d.getpath(self.backup), dirtree))
+		rel_args_set = {(d.getpath(self.base),
+						d.getpath(self.backup),
+						p)
+			for p in elfi.build_backup_path_set(build_path_set_dirtree(dirtree))}
 
+		#test that rel_args_set is subset of call list
+		for rel_args in rel_args_set:
+			cp.assert_any_call(*rel_args)
+
+		#test that call list is subset of rel_args_set
+		for args, kwargs in cp.call_args_list:
+			self.assertTrue(args in rel_args_set, 'Extra call made to cp')
+
+		self.assertNotCalled(rm, 'rm', 'Should only copy to an empty backup.')
+
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
 	@tempdir()
-	def test_BaseEmpty(self, d):
+	def test_BaseEmpty(self, cp, rm, d):
 		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
 						('hello', (
 							'test.py', 'test.c', 'test',
@@ -85,17 +101,22 @@ class TestElfi(unittest.TestCase):
 						)),
 						'alpha', 'beta'
 					)
-		makeDirTree(d, dirtree, relpath=self.backup)
+		make_dir_tree(d, dirtree, relpath=self.backup)
 		d.makedir(self.base)
 
 		diff_sets = elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
 		elfi.do_backup(d.getpath(self.base), d.getpath(self.backup), *diff_sets)
 
-		self.assertTrue(dirTreeMatches(d.getpath(self.base), ()))
-		self.assertTrue(dirTreeMatches(d.getpath(self.backup), ()))
+		rel_args_set = {(d.getpath(self.backup), p)
+			for p in elfi.build_backup_path_set(build_path_set_dirtree(dirtree))}
 
+		self.assertCallListEquals(rm, rel_args_set, 'Extra call made to rm')
+		self.assertNotCalled(cp, 'cp', 'Should only remove when base is empty.')
+
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
 	@tempdir()
-	def test_ModifiedFiles(self, d):
+	def test_ModifiedFiles(self, cp, rm, d):
 		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
 						('hello', (
 							'test.py', 'test.c', 'test',
@@ -113,30 +134,25 @@ class TestElfi(unittest.TestCase):
 						)
 
 		mtime = self.current_time_ns()
-		makeDirTree(d, dirtree, relpath=self.base, mtime=mtime)
-		makeDirTree(d, dirtree, relpath=self.backup, mtime=mtime)
+		make_dir_tree(d, dirtree, relpath=self.base, mtime=mtime)
+		make_dir_tree(d, dirtree, relpath=self.backup, mtime=mtime)
 
 		mtime_plus = (mtime + 1000000000, mtime + 1000000000)
 
 		for mod_path in modify_paths:
 			os.utime(d.getpath(os.path.join(self.base, mod_path)), ns=mtime_plus)
 
-		diff_sets = elfi.diff_walk(d.getpath(self.base), d.getpath(self.backup))
-		elfi.do_backup(d.getpath(self.base), d.getpath(self.backup), *diff_sets)
+		abs_base = d.getpath(self.base)
+		abs_backup = d.getpath(self.backup)
 
-		self.assertTrue(dirTreeMatches(d.getpath(self.base), dirtree))
-		self.assertTrue(dirTreeMatches(d.getpath(self.backup), dirtree))
+		diff_sets = elfi.diff_walk(abs_base, abs_backup)
+		elfi.do_backup(abs_base, abs_backup, *diff_sets)
 
-		for basedir in (self.base, self.backup):
-			for path, dirs, files in os.walk(d.getpath(basedir)):
-				for direntry in dirs + files:
-					direntry_path = os.path.join(path, direntry)
-					direntry_mtime = int(os.path.getmtime(direntry_path))
-					if os.path.join(path[len(d.getpath(basedir))+1:], direntry) in modify_paths:
-						mtime_answer = int(mtime_plus[0] / 1000000000)
-					else:
-						mtime_answer = int(mtime / 1000000000)
-					self.assertEqual(direntry_mtime, mtime_answer)
+		mod_args_set = {(abs_base, abs_backup, p)
+			for p in elfi.build_backup_path_set(modify_paths)}
+
+		self.assertCallListEquals(cp, mod_args_set, 'Extra call to cp')
+		self.assertNotCalled(rm, 'rm', 'Should only remove when base is missing files.')
 
 	def test_NewFiles(self):
 		pass
@@ -154,18 +170,28 @@ class TestElfi(unittest.TestCase):
 		pass
 		#self.assertTrue(False)
 
-	def assertNotCalled(self, mock, mock_name, reason=''):
-		if mock.called:
+	def assertNotCalled(self, mock_fn, mock_name, reason=''):
+		if mock_fn.called:
 			error_msg = mock_name + ' called '
-			error_msg += 'once' if mock.called == 1 else '{} times'
+			error_msg += 'once' if mock_fn.called == 1 else '{} times'
 			error_msg += ', last with {}'
 			if reason:
 				error_msg += '. ' + reason
 			if mock.called == 1:
-				error_msg = error_msg.format(mock.call_args)
+				error_msg = error_msg.format(mock_fn.call_args)
 			else:
-				error_msg = error_msg.format(mock.call_count, mock.call_args)
+				error_msg = error_msg.format(mock_fn.call_count, mock_fn.call_args)
 			raise AssertionError(error_msg)
+
+	def assertCallListEquals(self, mock_fn, target_list, reason='Extra call'):
+		#test that target_list is subset of call list
+		for rel_args in target_list:
+			mock_fn.assert_any_call(*rel_args)
+
+		#test that call list is subset of target_list
+		for args, kwargs in mock_fn.call_args_list:
+			self.assertTrue(args in target_list, reason)
+
 
 class TestPathSet(unittest.TestCase):
 	def setUp(self):
