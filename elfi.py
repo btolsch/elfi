@@ -72,6 +72,10 @@ def do_backup(base, backup, add_set, remove_set, update_set):
 		remove_from_backup(backup, item)
 
 def build_backup_path_set(paths):
+	"""Build a set of paths that excludes all files belew any directory.
+
+	E.g. would exclude hello/world.txt if hello/ is in paths
+	"""
 	path_set = set(paths)
 	for path in paths:
 		exclude_subtree = set(filterfalse(lambda p: p.startswith(path), paths))

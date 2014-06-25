@@ -219,6 +219,13 @@ class TestPathSet(unittest.TestCase):
 			#dir with similar name to file
 			(('hello/foo/bar.txt', 'hello/foo/', 'hello/foo.txt'),
 				set(('hello/foo/', 'hello/foo.txt'))
+			),
+			#no superceding
+			(('hello/foo/foo.txt', 'hello/foo/bar.txt', 'hello/foo/baz.txt',
+					'hello/bar/foo.txt', 'hello/world.txt'),
+				set(('hello/foo/foo.txt', 'hello/foo/bar.txt',
+					'hello/foo/baz.txt', 'hello/bar/foo.txt',
+					'hello/world.txt'))
 			)
 		)
 
@@ -231,6 +238,14 @@ class TestPathSet(unittest.TestCase):
 			#dir with similar name to file
 			(('hello/foo/', 'hello/foo/bar.txt', 'hello/foo.txt'),
 				set(('hello/foo/', 'hello/foo.txt'))
+			),
+			#no superceding
+			(('hello/world.txt', 'hello/foo/foo.txt',
+					'hello/foo/bar.txt', 'hello/foo/baz.txt',
+					'hello/bar/foo.txt'),
+				set(('hello/foo/foo.txt', 'hello/foo/bar.txt',
+					'hello/foo/baz.txt', 'hello/bar/foo.txt',
+					'hello/world.txt'))
 			)
 		)
 
@@ -243,6 +258,14 @@ class TestPathSet(unittest.TestCase):
 			#dir with similar name to file
 			(('hello/foo/', 'hello/foo.txt', 'hello/foo/bar.txt'), 
 				set(('hello/foo/', 'hello/foo.txt'))
+			),
+			#no superceding
+			(('hello/world.txt', 'hello/foo/bar.txt',
+					'hello/foo/foo.txt', 'hello/bar/foo.txt',
+					'hello/foo/baz.txt'),
+				set(('hello/foo/foo.txt', 'hello/foo/bar.txt',
+					'hello/foo/baz.txt', 'hello/bar/foo.txt',
+					'hello/world.txt'))
 			)
 		)
 
