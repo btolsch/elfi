@@ -60,20 +60,21 @@ class TestElfi(unittest.TestCase):
 		self.assertNotCalled(rm, 'rm',
 					"Identical directories shouldn't require a remove.")
 
-	@patch('elfi.remove_from_backup', autospec=True)
-	@patch('elfi.copy_to_backup', autospec=True)
-	@tempdir()
-	def test_BackupEmpty(self, cp, rm, d):
-		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
-						('hello', (
-							'test.py', 'test.c', 'test',
-							('world', (
-								'foo', 'banana'
-							))
-						)),
-						'alpha', 'beta'
-					)
-		self.backupEmptyTest(cp, rm, d, dirtree)
+	def test_BackupEmpty(self):
+		dirtrees = (
+			('foo.txt', 'blah.txt', 'a.txt', 'a.c',
+				('hello', (
+					'test.py', 'test.c', 'test',
+					('world', (
+						'foo', 'banana'
+					))
+				)),
+				'alpha', 'beta'
+			),
+			('hello.txt', ('hello', ('foo', 'bar'))),
+		)
+		for dirtree in dirtrees:
+			self.backupEmptyTest(dirtree)
 
 	@patch('elfi.remove_from_backup', autospec=True)
 	@patch('elfi.copy_to_backup', autospec=True)
@@ -207,11 +208,7 @@ class TestElfi(unittest.TestCase):
 	@patch('elfi.remove_from_backup', autospec=True)
 	@patch('elfi.copy_to_backup', autospec=True)
 	@tempdir()
-	def test_DirPrefixOfSiblingFile(self, cp, rm, d):
-		dirtree = ('hello.txt', ('hello', ('foo', 'bar')))
-		self.backupEmptyTest(cp, rm, d, dirtree)
-
-	def backupEmptyTest(self, cp, rm, d, dirtree):
+	def backupEmptyTest(self, dirtree, cp, rm, d):
 		d.makedir(self.backup)
 		make_dir_tree(d, dirtree, relpath=self.base)
 
@@ -252,7 +249,7 @@ class TestElfi(unittest.TestCase):
 
 		#test that call list is subset of target_list
 		for args, kwargs in mock_fn.call_args_list:
-			self.assertTrue(args in target_list, reason)
+			self.assertIn(args, target_list, reason)
 
 
 class TestPathSet(unittest.TestCase):
