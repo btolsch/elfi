@@ -42,9 +42,7 @@ class TestElfi(unittest.TestCase):
 						)),
 						'alpha', 'beta'
 					)
-		mtime = self.current_time_ns()
-		make_dir_tree(d, dirtree, relpath=self.backup, mtime=mtime)
-		make_dir_tree(d, dirtree, relpath=self.base, mtime=mtime)
+		self.initTempDir(d, dirtree)
 
 		abs_base = d.getpath(self.base)
 		abs_backup = d.getpath(self.backup)
@@ -55,10 +53,8 @@ class TestElfi(unittest.TestCase):
 
 		elfi.do_backup(abs_base, abs_backup, *diff_sets)
 
-		self.assertNotCalled(cp, 'cp',
-					"Identical directories shouldn't require a copy.")
-		self.assertNotCalled(rm, 'rm',
-					"Identical directories shouldn't require a remove.")
+		self.assertNotCalled(cp, 'cp', "Identical directories shouldn't require a copy.")
+		self.assertNotCalled(rm, 'rm', "Identical directories shouldn't require a remove.")
 
 	def test_BackupEmpty(self):
 		dirtrees = (
@@ -89,7 +85,7 @@ class TestElfi(unittest.TestCase):
 						)),
 						'alpha', 'beta'
 					)
-		make_dir_tree(d, dirtree, relpath=self.backup)
+		self.touchTree(d, dirtree, relpath=self.backup)
 		d.makedir(self.base)
 
 		abs_base = d.getpath(self.base)
@@ -121,21 +117,19 @@ class TestElfi(unittest.TestCase):
 						)),
 						'alpha', 'beta'
 					)
-		modify_paths = ('foo.txt',
-						os.path.join('hello', 'test.c'),
-						os.path.join('hello', 'test.py'),
-						os.path.join('hello', 'world', 'foo'),
-						os.path.join('hello', 'world', 'banana')
+		modify_tree =	('foo.txt',
+							('hello', (
+								'test.c', 'test.py',
+								('world', (
+									'foo', 'banana'
+								))
+							)),
+							'alpha'
 						)
+		modify_paths = build_path_set_dirtree(modify_tree, exclude_dirs=True)
 
-		mtime = self.current_time_ns()
-		make_dir_tree(d, dirtree, relpath=self.base, mtime=mtime)
-		make_dir_tree(d, dirtree, relpath=self.backup, mtime=mtime)
-
-		mtime_plus = (mtime + 1000000000, mtime + 1000000000)
-
-		for mod_path in modify_paths:
-			os.utime(d.getpath(os.path.join(self.base, mod_path)), ns=mtime_plus)
+		self.initTempDir(d, dirtree)
+		self.touchTree(d, modify_tree, relpath=self.base)
 
 		abs_base = d.getpath(self.base)
 		abs_backup = d.getpath(self.backup)
@@ -166,19 +160,18 @@ class TestElfi(unittest.TestCase):
 						)),
 						'alpha', 'beta'
 					)
-		new_paths = ('baz.txt',
-						os.path.join('hello', 'test.cpp'),
-						os.path.join('hello', 'README'),
-						os.path.join('hello', 'world', 'hand'),
-						os.path.join('hello', 'world', 'python')
-						)
+		new_tree = ('baz.txt',
+						('hello', (
+							'test.cpp', 'README',
+							('world', (
+								'hand', 'python'
+							)),
+						)),
+					)
+		new_paths = build_path_set_dirtree(new_tree, exclude_dirs=True)
 
-		mtime = self.current_time_ns()
-		make_dir_tree(d, dirtree, relpath=self.base, mtime=mtime)
-		make_dir_tree(d, dirtree, relpath=self.backup, mtime=mtime)
-
-		for p in new_paths:
-			d.write(os.path.join(self.base, p), b'')
+		self.initTempDir(d, dirtree)
+		self.touchTree(d, new_tree, relpath=self.base)
 
 		abs_base = d.getpath(self.base)
 		abs_backup = d.getpath(self.backup)
@@ -210,7 +203,7 @@ class TestElfi(unittest.TestCase):
 	@tempdir()
 	def backupEmptyTest(self, dirtree, cp, rm, d):
 		d.makedir(self.backup)
-		make_dir_tree(d, dirtree, relpath=self.base)
+		self.touchTree(d, dirtree, relpath=self.base)
 
 		abs_base = d.getpath(self.base)
 		abs_backup = d.getpath(self.backup)
@@ -228,6 +221,20 @@ class TestElfi(unittest.TestCase):
 		self.assertCallListsEqual(cp, rel_args_set, 'Extra call made to cp')
 		self.assertNotCalled(rm, 'rm', 'Should only copy to an empty backup.')
 
+	def initTempDir(self, d, dirtree):
+		mtime = self.current_time_ns() - 1000000000
+		make_dir_tree(d, dirtree, relpath=self.base, mtime=mtime)
+		make_dir_tree(d, dirtree, relpath=self.backup, mtime=mtime)
+
+	def touchTree(self, d, dirtree, relpath='', mtime=None):
+		#dirtree represents a directory: (name, (contents, ...))
+		for direntry in dirtree:
+			if isinstance(direntry, str):
+				d.write(os.path.join(relpath, direntry), b'')
+				if mtime:
+					os.utime(d.getpath(os.path.join(relpath, direntry)), ns=(mtime, mtime))
+			else:
+				self.touchTree(d, direntry[1], os.path.join(relpath, direntry[0]), mtime)
 
 	def assertNotCalled(self, mock_fn, mock_name, reason=''):
 		if mock_fn.called:

@@ -130,7 +130,7 @@ def print_diff_walk(add_set, remove_set, update_set):
 def print_walk(base):
 	"""Prints the result of walking starting at the path argument."""
 	for path, dirs, files in os.walk(base):
-		path = path[len(basepath):] + '/'
+		path = path[len(basepath):] + os.path.sep
 		print(path)
 		print('dirs:\t{}'.format(dirs))
 		print('files:\t{}'.format(files))

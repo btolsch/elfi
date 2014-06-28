@@ -28,6 +28,11 @@ class TestMakeTree(unittest.TestCase):
 								'hello/world/banana', 'alpha', 'beta',
 								'hello.txt'
 							}
+		self.dirtree_paths_nodirs = {'foo.txt', 'blah.txt', 'a.txt', 'a.c',
+										'hello/test.py', 'hello/test.c', 'hello/test',
+										'hello/world/foo', 'hello/world/banana', 'alpha',
+										'beta', 'hello.txt'
+									}
 		pass
 
 	def tearDown(self):
@@ -42,7 +47,7 @@ class TestMakeTree(unittest.TestCase):
 	def test_MakeDirTreeMtime(self, d):
 		base = 'base'
 		backup = 'backup'
-		mtime = int(round(time() * 1000000000))
+		mtime = int(round((time() - 1) * 1000000000))
 		maketree.make_dir_tree(d, self.dirtree, relpath=backup, mtime=mtime)
 		maketree.make_dir_tree(d, self.dirtree, relpath=base, mtime=mtime)
 
@@ -56,9 +61,12 @@ class TestMakeTree(unittest.TestCase):
 					self.assertEqual(dir_mtime, int(mtime / 1000000000))
 		
 
-	def test_BuildPathSet(self):
+	def test_BuildPathSetDirtree(self):
 		built_pathset = maketree.build_path_set_dirtree(self.dirtree)
 		self.assertEqual(built_pathset, self.dirtree_paths)
+
+		built_pathset_nodirs = maketree.build_path_set_dirtree(self.dirtree, exclude_dirs=True)
+		self.assertEqual(built_pathset_nodirs, self.dirtree_paths_nodirs)
 
 	@tempdir()
 	def test_BuildPathSetWalk(self, d):
