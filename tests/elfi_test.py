@@ -4,7 +4,7 @@ import shutil
 import sys
 from testfixtures import tempdir
 import unittest
-from mock import patch
+from unittest.mock import patch
 from time import time
 
 #import module with relative path when invoked from command line
