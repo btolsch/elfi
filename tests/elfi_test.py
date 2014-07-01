@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 import os
+import shutil
 import sys
 from testfixtures import tempdir
 import unittest
@@ -87,12 +89,10 @@ class TestElfi(unittest.TestCase):
 					)
 		self.touchTree(d, dirtree, relpath=self.backup)
 		d.makedir(self.base)
+		rel_path_set = elfi.build_backup_path_set(build_path_set_dirtree(dirtree))
 
 		abs_base = d.getpath(self.base)
 		abs_backup = d.getpath(self.backup)
-
-		rel_path_set = elfi.build_backup_path_set(build_path_set_dirtree(dirtree))
-		rel_args_set = {(d.getpath(self.backup), p) for p in rel_path_set}
 
 		diff_sets = elfi.diff_walk(abs_base, abs_backup)
 		self.assertEqual(len(diff_sets[0]), 0, 'Should be no additions to backup.')
@@ -101,7 +101,7 @@ class TestElfi(unittest.TestCase):
 
 		elfi.do_backup(abs_base, abs_backup, *diff_sets)
 
-		self.assertCallListsEqual(rm, rel_args_set, 'Extra call made to rm')
+		self.assertRmCallsEqual(d, rm, rel_path_set)
 		self.assertNotCalled(cp, 'cp', 'Should only remove when base is empty.')
 
 	@patch('elfi.remove_from_backup', autospec=True)
@@ -137,14 +137,11 @@ class TestElfi(unittest.TestCase):
 		diff_sets = elfi.diff_walk(abs_base, abs_backup)
 		self.assertEqual(len(diff_sets[0]), 0, 'Should be no additions to backup.')
 		self.assertEqual(len(diff_sets[1]), 0, 'Should be no removals from backup.')
-		self.assertEqual(set(diff_sets[2]), set(modify_paths), 'Extra update or update missing.')
+		self.assertEqual(set(diff_sets[2]), set(modify_paths), 'Extra/missing update')
 
 		elfi.do_backup(abs_base, abs_backup, *diff_sets)
 
-		mod_args_set = {(abs_base, abs_backup, p)
-			for p in elfi.build_backup_path_set(modify_paths)}
-
-		self.assertCallListsEqual(cp, mod_args_set, 'Extra call to cp')
+		self.assertCpCallsEqual(d, cp, elfi.build_backup_path_set(modify_paths))
 		self.assertNotCalled(rm, 'rm', 'Should only remove when base is missing files.')
 
 	@patch('elfi.remove_from_backup', autospec=True)
@@ -172,12 +169,10 @@ class TestElfi(unittest.TestCase):
 
 		self.initTempDir(d, dirtree)
 		self.touchTree(d, new_tree, relpath=self.base)
+		rel_path_set = elfi.build_backup_path_set(new_paths)
 
 		abs_base = d.getpath(self.base)
 		abs_backup = d.getpath(self.backup)
-
-		rel_path_set = elfi.build_backup_path_set(new_paths)
-		rel_args_set = {(abs_base, abs_backup, p) for p in rel_path_set}
 
 		diff_sets = elfi.diff_walk(abs_base, abs_backup)
 		self.assertEqual(set(diff_sets[0]), rel_path_set, 'All new paths should be added.')
@@ -186,17 +181,109 @@ class TestElfi(unittest.TestCase):
 
 		elfi.do_backup(abs_base, abs_backup, *diff_sets)
 
-		self.assertCallListsEqual(cp, rel_args_set, 'Extra call to cp')
+		self.assertCpCallsEqual(d, cp, rel_path_set)
 		self.assertNotCalled(rm, 'rm', 'Should only remove when base is missing files.')
 
-	def test_NewDirectories(self):
-		pass
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
+	@tempdir()
+	def test_NewDirectories(self, cp, rm, d):
+		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
+						('hello', (
+							'test.py', 'test.c', 'test',
+							('world', (
+								'foo', 'banana'
+							))
+						)),
+						'alpha', 'beta'
+					)
+		newdir_paths = ('foo/', 'foo/bar/', 'foo/bar/baz/', 'hello/blah/',
+						'hello/world/sub/')
 
-	def test_DeletedFiles(self):
-		pass
+		self.initTempDir(d, dirtree)
+		rel_path_set = elfi.build_backup_path_set(newdir_paths)
+		for dir in newdir_paths:
+			d.makedir(os.path.join(self.base, dir))
 
-	def test_DeletedDirectories(self):
-		pass
+		abs_base = d.getpath(self.base)
+		abs_backup = d.getpath(self.backup)
+
+		diff_sets = elfi.diff_walk(abs_base, abs_backup)
+		self.assertEqual(set(diff_sets[0]), rel_path_set, 'Root of new directory trees should be considered new.')
+		self.assertEqual(len(diff_sets[1]), 0, 'Should be no removals in backup.')
+		self.assertEqual(len(diff_sets[2]), 0, 'Should be no updates in backup.')
+
+		elfi.do_backup(abs_base, abs_backup, *diff_sets)
+
+		self.assertCpCallsEqual(d, cp, rel_path_set)
+		self.assertNotCalled(rm, 'rm', 'Should only copy to an empty backup.')
+
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
+	@tempdir()
+	def test_DeletedFiles(self, cp, rm, d):
+		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
+						('hello', (
+							'test.py', 'test.c', 'test',
+							('world', (
+								'foo', 'banana'
+							))
+						)),
+						'alpha', 'beta'
+					)
+		delete_files = ('blah.txt', 'hello/test.c', 'hello/world/banana',
+						'alpha', 'hello/test.py')
+
+		self.initTempDir(d, dirtree)
+		rel_path_set = elfi.build_backup_path_set(delete_files)
+		for path in rel_path_set:
+			os.remove(d.getpath(os.path.join(self.base, path)))
+
+		abs_base = d.getpath(self.base)
+		abs_backup = d.getpath(self.backup)
+
+		diff_sets = elfi.diff_walk(abs_base, abs_backup)
+		self.assertEqual(len(diff_sets[0]), 0, 'Should be no additions to backup.')
+		self.assertEqual(set(diff_sets[1]), rel_path_set, 'Extra/missing file removals in backup.')
+		self.assertEqual(len(diff_sets[2]), 0, 'Should be no updates in backup.')
+
+		elfi.do_backup(abs_base, abs_backup, *diff_sets)
+
+		self.assertRmCallsEqual(d, rm, rel_path_set)
+		self.assertNotCalled(cp, 'cp', 'Should only remove from backup.')
+
+	@patch('elfi.remove_from_backup', autospec=True)
+	@patch('elfi.copy_to_backup', autospec=True)
+	@tempdir()
+	def test_DeletedDirectories(self, cp, rm, d):
+		dirtree =	('foo.txt', 'blah.txt', 'a.txt', 'a.c',
+						('hello', (
+							'test.py', 'test.c', 'test',
+							('world', (
+								'foo', 'banana'
+							))
+						)),
+						'alpha', 'beta'
+					)
+		delete_dirs = ('hello/', 'hello/world/')
+
+		self.initTempDir(d, dirtree)
+		rel_path_set = elfi.build_backup_path_set(delete_dirs)
+		for path in rel_path_set:
+			shutil.rmtree(d.getpath(os.path.join(self.base, path)))
+
+		abs_base = d.getpath(self.base)
+		abs_backup = d.getpath(self.backup)
+
+		diff_sets = elfi.diff_walk(abs_base, abs_backup)
+		self.assertEqual(len(diff_sets[0]), 0, 'Should be no additions to backup.')
+		self.assertEqual(set(diff_sets[1]), rel_path_set, 'Extra/missing file removals in backup.')
+		self.assertEqual(len(diff_sets[2]), 0, 'Should be no updates in backup.')
+
+		elfi.do_backup(abs_base, abs_backup, *diff_sets)
+
+		self.assertRmCallsEqual(d, rm, rel_path_set)
+		self.assertNotCalled(cp, 'cp', 'Should only remove from backup.')
 
 	@patch('elfi.remove_from_backup', autospec=True)
 	@patch('elfi.copy_to_backup', autospec=True)
@@ -204,12 +291,10 @@ class TestElfi(unittest.TestCase):
 	def backupEmptyTest(self, dirtree, cp, rm, d):
 		d.makedir(self.backup)
 		self.touchTree(d, dirtree, relpath=self.base)
+		rel_path_set = elfi.build_backup_path_set(build_path_set_dirtree(dirtree))
 
 		abs_base = d.getpath(self.base)
 		abs_backup = d.getpath(self.backup)
-
-		rel_path_set = elfi.build_backup_path_set(build_path_set_dirtree(dirtree))
-		rel_args_set = {(abs_base, abs_backup, p) for p in rel_path_set}
 
 		diff_sets = elfi.diff_walk(abs_base, abs_backup)
 		self.assertEqual(set(diff_sets[0]), rel_path_set, 'All paths in base should be considered new.')
@@ -218,7 +303,7 @@ class TestElfi(unittest.TestCase):
 
 		elfi.do_backup(abs_base, abs_backup, *diff_sets)
 
-		self.assertCallListsEqual(cp, rel_args_set, 'Extra call made to cp')
+		self.assertCpCallsEqual(d, cp, rel_path_set)
 		self.assertNotCalled(rm, 'rm', 'Should only copy to an empty backup.')
 
 	def initTempDir(self, d, dirtree):
@@ -249,7 +334,22 @@ class TestElfi(unittest.TestCase):
 				error_msg = error_msg.format(mock_fn.call_count, mock_fn.call_args)
 			raise AssertionError(error_msg)
 
-	def assertCallListsEqual(self, mock_fn, target_list, reason='Extra call'):
+	def assertCpCallsEqual(self, d, cp_mock, targets, reason='Extra/missing call to cp'):
+		abs_base = d.getpath(self.base)
+		abs_backup = d.getpath(self.backup)
+
+		rel_args_set = {(abs_base, abs_backup, p) for p in targets}
+
+		self.assertCallListsEqual(cp_mock, rel_args_set, reason)
+
+	def assertRmCallsEqual(self, d, rm_mock, targets, reason='Extra/missing call to rm'):
+		abs_backup = d.getpath(self.backup)
+
+		rel_args_set = {(abs_backup, p) for p in targets}
+
+		self.assertCallListsEqual(rm_mock, rel_args_set, reason)
+
+	def assertCallListsEqual(self, mock_fn, target_list, reason='Extra/missing call'):
 		#test that target_list is subset of call list
 		for rel_args in target_list:
 			mock_fn.assert_any_call(*rel_args)
